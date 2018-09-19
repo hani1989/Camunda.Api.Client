@@ -1,8 +1,11 @@
-﻿
+﻿using System;
+using System.Net.Http;
+using System.Reflection;
+using System.Globalization;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Refit;
-using System;
 
 using Camunda.Api.Client.Deployment;
 using Camunda.Api.Client.Execution;
@@ -18,8 +21,7 @@ using Camunda.Api.Client.Incident;
 using Camunda.Api.Client.History;
 using Camunda.Api.Client.User;
 using Camunda.Api.Client.Group;
-
-using System.Net.Http;
+using Camunda.Api.Client.Identity;
 
 namespace Camunda.Api.Client
 {
@@ -38,8 +40,9 @@ namespace Camunda.Api.Client
         private Lazy<IIncidentRestService> _incidentApi;
         private Lazy<IUserRestService> _userApi;
 		private Lazy<IGroupRestService> _groupApi;
+        private Lazy<IIdentityRestService> _identityApi;
 
-		private HistoricApi _historicApi;
+        private HistoricApi _historicApi;
 
         private string _hostUrl;
         private HttpClient _httpClient;
@@ -77,9 +80,23 @@ namespace Camunda.Api.Client
         {
             _httpMessageHandler = _httpMessageHandler ?? new ErrorMessageHandler();
 
+            _refitSettings = _refitSettings ?? new RefitSettings
+            {
+                JsonSerializerSettings = _jsonSerializerSettings,
+                UrlParameterFormatter = new CustomUrlParameterFormatter(),
+                HttpMessageHandlerFactory = () => _httpMessageHandler
+            };
+        }
 
-
-            _refitSettings = _refitSettings ?? new RefitSettings { JsonSerializerSettings = _jsonSerializerSettings, HttpMessageHandlerFactory = () => _httpMessageHandler };
+        private class CustomUrlParameterFormatter : DefaultUrlParameterFormatter
+        {
+            public override string Format(object parameterValue, ParameterInfo parameterInfo)
+            {
+                if (parameterValue is bool)
+                    return string.Format(CultureInfo.InvariantCulture, "{0}", parameterValue).ToLower();
+                else
+                    return base.Format(parameterValue, parameterInfo);
+            }
         }
 
         private class CustomCamelCasePropertyNamesContractResolver : CamelCasePropertyNamesContractResolver
@@ -125,8 +142,9 @@ namespace Camunda.Api.Client
             _jobApi = CreateService<IJobRestService>();
             _incidentApi = CreateService<IIncidentRestService>();
 			_groupApi = CreateService<IGroupRestService>();
+            _identityApi = CreateService<IIdentityRestService>();
 
-			_historicApi = new HistoricApi()
+            _historicApi = new HistoricApi()
             {
                 ProcessInstanceApi = CreateService<IHistoricProcessInstanceRestService>(),
                 ActivityInstanceApi = CreateService<IHistoricActivityInstanceRestService>(),
@@ -202,5 +220,8 @@ namespace Camunda.Api.Client
 
 		/// <see href="https://docs.camunda.org/manual/7.6/reference/rest/group/"/>
 		public GroupService Group => new GroupService(_groupApi.Value);
-	}
+
+        /// <see href="https://docs.camunda.org/manual/7.8/reference/rest/identity/"/>
+        public IdentityService Identity => new IdentityService(_identityApi.Value);
+    }
 }
